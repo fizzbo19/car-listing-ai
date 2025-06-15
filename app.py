@@ -2,19 +2,16 @@ import streamlit as st
 from openai import OpenAI
 import gspread
 from google.oauth2.service_account import Credentials
-import json
 
 # Function to append data to Google Sheet
 def append_to_google_sheet(data_dict):
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 
-    # Load Google credentials from Streamlit secrets
-    credentials_info = json.loads(st.secrets["google"]["credentials_json"])
-
-    creds = Credentials.from_service_account_info(credentials_info, scopes=scopes)
+    # Load credentials directly from the JSON file in your project directory
+    creds = Credentials.from_service_account_file("google-credentials.json", scopes=scopes)
     client = gspread.authorize(creds)
 
-    # Replace with your Google Sheet URL
+    # Google Sheet URL
     sheet = client.open_by_url(
         "https://docs.google.com/spreadsheets/d/12UDiRnjQXwxcHFjR3SWdz8lB45-OTGHBzm3YVcExnsQ/edit"
     ).sheet1
@@ -34,14 +31,14 @@ def append_to_google_sheet(data_dict):
 
     sheet.append_row(row)
 
-
-# Streamlit UI config
+# Streamlit UI
 st.set_page_config(page_title="🚗 AI Car Listing Generator", layout="centered")
 st.title("🚗 AI Car Listing Generator")
 
-# Get OpenAI API key securely from user input
+# OpenAI key
 api_key = st.text_input("Enter your OpenAI API key", type="password")
 
+# Car input form
 with st.form("car_form"):
     make = st.text_input("Car Make", "BMW")
     model = st.text_input("Model", "X5 M Sport")
@@ -55,6 +52,7 @@ with st.form("car_form"):
     notes = st.text_area("Dealer Notes (optional)", "Full service history, finance available")
     submit = st.form_submit_button("Generate Listing")
 
+# Process form
 if submit:
     if not api_key:
         st.warning("⚠️ Please enter your OpenAI API key to generate the listing.")
@@ -95,7 +93,6 @@ Use separate paragraphs and include relevant emojis to make it more engaging.
             st.markdown(listing)
 
             st.download_button("⬇️ Download as Text", listing, file_name="car_listing.txt")
-
             st.text("Copy the text above or download it as a file.")
 
             car_data = {
@@ -110,8 +107,11 @@ Use separate paragraphs and include relevant emojis to make it more engaging.
                 "Features": features,
                 "Dealer Notes": notes,
             }
+
             append_to_google_sheet(car_data)
             st.success("✅ Car details saved to Google Sheets!")
+
         except Exception as e:
             st.error(f"⚠️ Error: {e}")
+
 
