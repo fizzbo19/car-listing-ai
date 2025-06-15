@@ -1,6 +1,5 @@
 import streamlit as st
-from openai import OpenAI
-import os
+import openai
 
 # App title
 st.set_page_config(page_title="AI Car Listing Generator", layout="centered")
@@ -25,7 +24,7 @@ with st.form("car_form"):
 
 # Listing output
 if submit and api_key:
-    client = OpenAI(api_key=api_key)
+    openai.api_key = api_key
 
     prompt = f"""
     You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
@@ -45,7 +44,7 @@ if submit and api_key:
     """
 
     with st.spinner("Generating..."):
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful car sales assistant."},
@@ -54,6 +53,6 @@ if submit and api_key:
             temperature=0.7
         )
 
-        listing = response.choices[0].message.content
+        listing = response['choices'][0]['message']['content']
         st.subheader("📋 Your Listing:")
         st.success(listing)
