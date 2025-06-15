@@ -1,5 +1,33 @@
 import streamlit as st
-from openai import OpenAI
+import openai
+import gspread
+from google.oauth2.service_account import Credentials
+
+def append_to_google_sheet(data_dict):
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_file(
+        "google-credentials.json",
+        scopes=scopes
+    )
+    client = gspread.authorize(creds)
+    sheet = client.open_by_url(
+        "https://docs.google.com/spreadsheets/d/12UDiRnjQXwxcHFjR3SWdz8lB45-OTGHBzm3YVcExnsQ/edit"
+    ).sheet1
+
+    row = [
+        data_dict.get("Make"),
+        data_dict.get("Model"),
+        data_dict.get("Year"),
+        data_dict.get("Mileage"),
+        data_dict.get("Color"),
+        data_dict.get("Fuel Type"),
+        data_dict.get("Transmission"),
+        data_dict.get("Price"),
+        data_dict.get("Features"),
+        data_dict.get("Dealer Notes"),
+    ]
+
+    sheet.append_row(row)
 
 st.set_page_config(page_title="AI Car Listing Generator", layout="centered")
 st.title("🚗 AI Car Listing Generator")
@@ -19,38 +47,61 @@ with st.form("car_form"):
     notes = st.text_area("Dealer Notes (optional)", "Full service history, finance available")
     submit = st.form_submit_button("Generate Listing")
 
-if submit and api_key:
-    client = OpenAI(api_key=api_key)  # create client
+if submit:
+    if not api_key:
+        st.warning("⚠️ Please enter your OpenAI API key to generate the listing.")
+    else:
+        openai.api_key = api_key
+        prompt = f"""
+You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
 
-    prompt = f"""
-    You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
+Make: {make}
+Model: {model}
+Year: {year}
+Mileage: {mileage}
+Color: {color}
+Fuel Type: {fuel}
+Transmission: {transmission}
+Price: {price}
+Features: {features}
+Dealer Notes: {notes}
 
-    Make: {make}
-    Model: {model}
-    Year: {year}
-    Mileage: {mileage}
-    Color: {color}
-    Fuel Type: {fuel}
-    Transmission: {transmission}
-    Price: {price}
-    Features: {features}
-    Dealer Notes: {notes}
+The description should be 100–150 words, highlight the car’s main selling points, and include a friendly yet persuasive tone that builds urgency and trust.
 
-    The description should be 100–150 words, highlight the car’s main selling points, and include a friendly yet persuasive tone that builds urgency and trust.
-    """
+Please include line breaks between paragraphs and use a few relevant emojis (e.g., 🚗, ⭐️, 🔥) to make the listing more engaging.
+"""
+        try:
+            with st.spinner("Generating..."):
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful car sales assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                )
+                listing = response.choices[0].message.content
 
-    with st.spinner("Generating..."):
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful car sales assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7
-        )
-        listing = response.choices[0].message.content
-        st.subheader("📋 Your Listing:")
-        st.code(listing, language='markdown')
-        st.download_button("⬇️ Download as Text", listing, file_name="car_listing.txt")
-        st.text("Copy the text above or download it as a file.")
+            st.subheader("📋 Your Listing:")
+            st.markdown(listing)
 
+            st.download_button("⬇️ Download as Text", listing, file_name="car_listing.txt")
+
+            st.text("Copy the text above or download it as a file.")
+
+            car_data = {
+                "Make": make,
+                "Model": model,
+                "Year": year,
+                "Mileage": mileage,
+                "Color": color,
+                "Fuel Type": fuel,
+                "Transmission": transmission,
+                "Price": price,
+                "Features": features,
+                "Dealer Notes": notes,
+            }
+            append_to_google_sheet(car_data)
+            st.success("✅ Car details saved to Google Sheets!")
+        except Exception as e:
+            st.error(f"⚠️ Error: {e}")
