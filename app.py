@@ -1,5 +1,5 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -51,28 +51,29 @@ if submit:
     if not api_key:
         st.warning("⚠️ Please enter your OpenAI API key to generate the listing.")
     else:
-        openai.api_key = api_key
-        prompt = f"""
-You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
-
-Make: {make}
-Model: {model}
-Year: {year}
-Mileage: {mileage}
-Color: {color}
-Fuel Type: {fuel}
-Transmission: {transmission}
-Price: {price}
-Features: {features}
-Dealer Notes: {notes}
-
-The description should be 100–150 words, highlight the car’s main selling points, and include a friendly yet persuasive tone that builds urgency and trust.
-
-Please include line breaks between paragraphs and use a few relevant emojis (e.g., 🚗, ⭐️, 🔥) to make the listing more engaging.
-"""
         try:
+            client = OpenAI(api_key=api_key)
+
+            prompt = f"""
+            You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
+
+            Make: {make}
+            Model: {model}
+            Year: {year}
+            Mileage: {mileage}
+            Color: {color}
+            Fuel Type: {fuel}
+            Transmission: {transmission}
+            Price: {price}
+            Features: {features}
+            Dealer Notes: {notes}
+
+            The description should be 100–150 words, highlight the car’s main selling points, and include a friendly yet persuasive tone that builds urgency and trust.
+            Use separate paragraphs and include relevant emojis to make it more engaging.
+            """
+
             with st.spinner("Generating..."):
-                response = openai.ChatCompletion.create(
+                response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": "You are a helpful car sales assistant."},
