@@ -55,43 +55,5 @@ if submit and api_key:
 
         listing = response['choices'][0]['message']['content']
         st.subheader("📋 Your Listing:")
-        st.success(listing)
-
-# Listing output
-if submit and api_key:
-    client = OpenAI(api_key=api_key)
-
-    prompt = f"""
-    You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
-
-    Make: {make}
-    Model: {model}
-    Year: {year}
-    Mileage: {mileage}
-    Color: {color}
-    Fuel Type: {fuel}
-    Transmission: {transmission}
-    Price: {price}
-    Features: {features}
-    Dealer Notes: {notes}
-
-    The description should be 100–150 words, highlight the car’s main selling points, and include a friendly yet persuasive tone that builds urgency and trust.
-    """
-
-    with st.spinner("Generating..."):
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful car sales assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7
-        )
-
-        listing = response.choices[0].message.content
-        st.subheader("📋 Your Listing:")
-        st.code(listing, language='markdown')  # display in code block
-
+        st.code(listing, language='markdown')
         st.download_button("⬇️ Download as Text", listing, file_name="car_listing.txt")
-
-        st.text("Copy the text above or download it as a file.")
