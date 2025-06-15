@@ -2,21 +2,22 @@ import streamlit as st
 from openai import OpenAI
 import gspread
 from google.oauth2.service_account import Credentials
+import json
+from datetime import datetime
 
 # Function to append data to Google Sheet
 def append_to_google_sheet(data_dict):
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-
-    # Load credentials directly from the JSON file in your project directory
-    creds = Credentials.from_service_account_file("google-credentials.json", scopes=scopes)
+    credentials_info = json.loads(st.secrets["google"]["credentials_json"])
+    creds = Credentials.from_service_account_info(credentials_info, scopes=scopes)
     client = gspread.authorize(creds)
 
-    # Google Sheet URL
     sheet = client.open_by_url(
         "https://docs.google.com/spreadsheets/d/12UDiRnjQXwxcHFjR3SWdz8lB45-OTGHBzm3YVcExnsQ/edit"
     ).sheet1
 
     row = [
+        data_dict.get("User ID"),
         data_dict.get("Make"),
         data_dict.get("Model"),
         data_dict.get("Year"),
@@ -27,19 +28,38 @@ def append_to_google_sheet(data_dict):
         data_dict.get("Price"),
         data_dict.get("Features"),
         data_dict.get("Dealer Notes"),
+        data_dict.get("Timestamp"),
     ]
 
     sheet.append_row(row)
+
+# Function to check number of listings in current month for a user
+def check_usage_this_month(user_id):
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    credentials_info = json.loads(st.secrets["google"]["credentials_json"])
+    creds = Credentials.from_service_account_info(credentials_info, scopes=scopes)
+    client = gspread.authorize(creds)
+
+    sheet = client.open_by_url(
+        "https://docs.google.com/spreadsheets/d/12UDiRnjQXwxcHFjR3SWdz8lB45-OTGHBzm3YVcExnsQ/edit"
+    ).sheet1
+    data = sheet.get_all_records()
+
+    this_month = datetime.now().strftime("%Y-%m")
+    count = 0
+    for row in data:
+        if row.get("User ID") == user_id and row.get("Timestamp", "").startswith(this_month):
+            count += 1
+    return count
 
 # Streamlit UI
 st.set_page_config(page_title="🚗 AI Car Listing Generator", layout="centered")
 st.title("🚗 AI Car Listing Generator")
 
-# OpenAI key
 api_key = st.text_input("Enter your OpenAI API key", type="password")
 
-# Car input form
 with st.form("car_form"):
+    user_id = st.text_input("Your Business Email or Dealer ID", "")
     make = st.text_input("Car Make", "BMW")
     model = st.text_input("Model", "X5 M Sport")
     year = st.text_input("Year", "2021")
@@ -52,15 +72,19 @@ with st.form("car_form"):
     notes = st.text_area("Dealer Notes (optional)", "Full service history, finance available")
     submit = st.form_submit_button("Generate Listing")
 
-# Process form
 if submit:
-    if not api_key:
-        st.warning("⚠️ Please enter your OpenAI API key to generate the listing.")
+    if not api_key or not user_id:
+        st.warning("⚠️ Please enter both your OpenAI API key and business ID.")
     else:
         try:
-            client = OpenAI(api_key=api_key)
+            usage_count = check_usage_this_month(user_id)
 
-            prompt = f"""
+            if usage_count >= 3:
+                st.warning(f"⚠️ You’ve reached your 3 free listings for this month. Please upgrade to continue using this tool.")
+            else:
+                client = OpenAI(api_key=api_key)
+
+                prompt = f"""
 You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
 
 Make: {make}
@@ -77,40 +101,38 @@ Dealer Notes: {notes}
 The description should be 100–150 words, highlight the car’s main selling points, and include a friendly yet persuasive tone that builds urgency and trust.
 Use separate paragraphs and include relevant emojis to make it more engaging.
 """
+                with st.spinner("Generating..."):
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "You are a helpful car sales assistant."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.7,
+                    )
+                    listing = response.choices[0].message.content
 
-            with st.spinner("Generating..."):
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful car sales assistant."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                )
-                listing = response.choices[0].message.content
+                st.subheader("📋 Your Listing:")
+                st.markdown(listing)
+                st.download_button("⬇️ Download as Text", listing, file_name="car_listing.txt")
 
-            st.subheader("📋 Your Listing:")
-            st.markdown(listing)
-
-            st.download_button("⬇️ Download as Text", listing, file_name="car_listing.txt")
-            st.text("Copy the text above or download it as a file.")
-
-            car_data = {
-                "Make": make,
-                "Model": model,
-                "Year": year,
-                "Mileage": mileage,
-                "Color": color,
-                "Fuel Type": fuel,
-                "Transmission": transmission,
-                "Price": price,
-                "Features": features,
-                "Dealer Notes": notes,
-            }
-
-            append_to_google_sheet(car_data)
-            st.success("✅ Car details saved to Google Sheets!")
-
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                car_data = {
+                    "User ID": user_id,
+                    "Make": make,
+                    "Model": model,
+                    "Year": year,
+                    "Mileage": mileage,
+                    "Color": color,
+                    "Fuel Type": fuel,
+                    "Transmission": transmission,
+                    "Price": price,
+                    "Features": features,
+                    "Dealer Notes": notes,
+                    "Timestamp": timestamp,
+                }
+                append_to_google_sheet(car_data)
+                st.success(f"✅ Listing generated and saved. You've used {usage_count + 1} out of 3 free listings this month.")
         except Exception as e:
             st.error(f"⚠️ Error: {e}")
 
