@@ -2,14 +2,19 @@ import streamlit as st
 from openai import OpenAI
 import gspread
 from google.oauth2.service_account import Credentials
+import json
 
+# Function to append data to Google Sheet
 def append_to_google_sheet(data_dict):
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-    creds = Credentials.from_service_account_file(
-        "google-credentials.json",
-        scopes=scopes
-    )
+
+    # Load Google credentials from Streamlit secrets
+    credentials_info = json.loads(st.secrets["google"]["credentials_json"])
+
+    creds = Credentials.from_service_account_info(credentials_info, scopes=scopes)
     client = gspread.authorize(creds)
+
+    # Replace with your Google Sheet URL
     sheet = client.open_by_url(
         "https://docs.google.com/spreadsheets/d/12UDiRnjQXwxcHFjR3SWdz8lB45-OTGHBzm3YVcExnsQ/edit"
     ).sheet1
@@ -29,9 +34,12 @@ def append_to_google_sheet(data_dict):
 
     sheet.append_row(row)
 
-st.set_page_config(page_title="AI Car Listing Generator", layout="centered")
+
+# Streamlit UI config
+st.set_page_config(page_title="🚗 AI Car Listing Generator", layout="centered")
 st.title("🚗 AI Car Listing Generator")
 
+# Get OpenAI API key securely from user input
 api_key = st.text_input("Enter your OpenAI API key", type="password")
 
 with st.form("car_form"):
@@ -55,22 +63,22 @@ if submit:
             client = OpenAI(api_key=api_key)
 
             prompt = f"""
-            You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
+You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
 
-            Make: {make}
-            Model: {model}
-            Year: {year}
-            Mileage: {mileage}
-            Color: {color}
-            Fuel Type: {fuel}
-            Transmission: {transmission}
-            Price: {price}
-            Features: {features}
-            Dealer Notes: {notes}
+Make: {make}
+Model: {model}
+Year: {year}
+Mileage: {mileage}
+Color: {color}
+Fuel Type: {fuel}
+Transmission: {transmission}
+Price: {price}
+Features: {features}
+Dealer Notes: {notes}
 
-            The description should be 100–150 words, highlight the car’s main selling points, and include a friendly yet persuasive tone that builds urgency and trust.
-            Use separate paragraphs and include relevant emojis to make it more engaging.
-            """
+The description should be 100–150 words, highlight the car’s main selling points, and include a friendly yet persuasive tone that builds urgency and trust.
+Use separate paragraphs and include relevant emojis to make it more engaging.
+"""
 
             with st.spinner("Generating..."):
                 response = client.chat.completions.create(
@@ -106,3 +114,4 @@ if submit:
             st.success("✅ Car details saved to Google Sheets!")
         except Exception as e:
             st.error(f"⚠️ Error: {e}")
+
