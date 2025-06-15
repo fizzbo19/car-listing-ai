@@ -24,7 +24,7 @@ with st.form("car_form"):
 
 # Generate car listing using OpenAI
 if submit and api_key:
-    client = openai.OpenAI(api_key=api_key)
+    openai.api_key = api_key  # ✅ This is how to set the API key
 
     prompt = f"""
     You are an expert car sales assistant. Create a compelling, detailed, and professional listing for a car with the following details:
@@ -44,7 +44,7 @@ if submit and api_key:
     """
 
     with st.spinner("Generating..."):
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(  # ✅ Correct method for v1.x
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful car sales assistant."},
@@ -56,7 +56,5 @@ if submit and api_key:
         listing = response.choices[0].message.content
         st.subheader("📋 Your Listing:")
         st.code(listing, language='markdown')
-
         st.download_button("⬇️ Download as Text", listing, file_name="car_listing.txt")
-
         st.text("Copy the text above or download it as a file.")
