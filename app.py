@@ -6,11 +6,11 @@ import json
 from datetime import datetime
 import stripe
 
-# Streamlit UI
+# Streamlit UI setup
 st.set_page_config(page_title="🚗 AI Car Listing Generator", layout="centered")
 st.title("🚗 AI Car Listing Generator")
 
-# Optional: Show payment success or cancel messages
+# Show payment success or cancel messages
 query_params = st.experimental_get_query_params()
 
 if "success" in query_params:
@@ -18,12 +18,12 @@ if "success" in query_params:
 elif "canceled" in query_params:
     st.warning("❌ Payment canceled. You can continue with your free plan.")
 
-# Get API key input
+# Get API key input from user
 api_key = st.text_input("Enter your OpenAI API key", type="password")
 
-# Stripe config
+# Stripe config from secrets.toml
 stripe.api_key = st.secrets["stripe"]["secret_key"]
-price_id = st.secrets["stripe"]["price_id"]
+price_id = st.secrets["stripe"]["price_id_premium"]  # Using premium price ID for subscription
 
 # Form to collect car details
 with st.form("car_form"):
@@ -68,7 +68,7 @@ def append_to_google_sheet(data_dict):
 
     sheet.append_row(row)
 
-# Function to check number of listings in current month for a user
+# Function to check usage this month for a user
 def check_usage_this_month(user_id):
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     credentials_info = json.loads(st.secrets["google"]["credentials_json"])
@@ -87,30 +87,7 @@ def check_usage_this_month(user_id):
             count += 1
     return count
 
-# Simulated usage limit (replace this logic with real user tracking later)
-monthly_usage = 3  # Example: 3 listings already used
-
-# Stripe checkout for subscription if user hits limit
-if monthly_usage >= 3:
-    st.warning("🚫 You've reached your 3 free listings this month.")
-    if st.button("💳 Upgrade to Premium (£9.99/month)"):
-        try:
-            checkout_session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                line_items=[{"price": price_id, "quantity": 1}],
-                mode="subscription",
-                success_url="https://car-listing-ai-kyjvkaybulqzjtdejuatq8.streamlit.app?success=true",
-                cancel_url="https://car-listing-ai-kyjvkaybulqzjtdejuatq8.streamlit.app?canceled=true",
-            )
-            st.markdown(
-                f"[🔗 Click here to complete subscription]({checkout_session.url})",
-                unsafe_allow_html=True,
-            )
-        except Exception as e:
-            st.error(f"Stripe error: {e}")
-    st.stop()
-
-# Main submission logic
+# Main logic for usage and Stripe checkout
 if submit:
     if not api_key or not user_id:
         st.warning("⚠️ Please enter both your OpenAI API key and business ID.")
@@ -118,8 +95,27 @@ if submit:
         try:
             usage_count = check_usage_this_month(user_id)
 
+            # Free listings limit
             if usage_count >= 3:
-                st.warning(f"⚠️ You’ve reached your 3 free listings for this month. Please upgrade to continue using this tool.")
+                st.warning("🚫 You've reached your 3 free listings this month.")
+
+                if st.button("💳 Upgrade to Premium (£9.99/month)"):
+                    try:
+                        checkout_session = stripe.checkout.Session.create(
+                            payment_method_types=["card"],
+                            line_items=[{"price": price_id, "quantity": 1}],
+                            mode="subscription",
+                            success_url="https://car-listing-ai-kyjvkaybulqzjtdejuatq8.streamlit.app?success=true",
+                            cancel_url="https://car-listing-ai-kyjvkaybulqzjtdejuatq8.streamlit.app?canceled=true",
+                        )
+                        st.markdown(
+                            f"[🔗 Click here to complete subscription]({checkout_session.url})",
+                            unsafe_allow_html=True,
+                        )
+                    except Exception as e:
+                        st.error(f"Stripe error: {e}")
+                st.stop()  # Stop further processing
+
             else:
                 client = OpenAI(api_key=api_key)
 
@@ -172,8 +168,10 @@ Use separate paragraphs and include relevant emojis to make it more engaging.
                 }
                 append_to_google_sheet(car_data)
                 st.success(f"✅ Listing generated and saved. You've used {usage_count + 1} out of 3 free listings this month.")
+
         except Exception as e:
             st.error(f"⚠️ Error: {e}")
+
 
 
 
