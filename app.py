@@ -4,6 +4,41 @@ import gspread
 from google.oauth2.service_account import Credentials
 import json
 from datetime import datetime
+import stripe
+
+# Streamlit UI
+st.set_page_config(page_title="🚗 AI Car Listing Generator", layout="centered")
+st.title("🚗 AI Car Listing Generator")
+
+# Optional: Show payment success or cancel messages
+query_params = st.experimental_get_query_params()
+
+if "success" in query_params:
+    st.success("🎉 Payment successful! Your Premium plan is now active.")
+elif "canceled" in query_params:
+    st.warning("❌ Payment canceled. You can continue with your free plan.")
+
+# Get API key input
+api_key = st.text_input("Enter your OpenAI API key", type="password")
+
+# Stripe config
+stripe.api_key = st.secrets["stripe"]["secret_key"]
+price_id = st.secrets["stripe"]["price_id"]
+
+# Form to collect car details
+with st.form("car_form"):
+    user_id = st.text_input("Your Business Email or Dealer ID", "")
+    make = st.text_input("Car Make", "BMW")
+    model = st.text_input("Model", "X5 M Sport")
+    year = st.text_input("Year", "2021")
+    mileage = st.text_input("Mileage", "28,000 miles")
+    color = st.text_input("Color", "Black")
+    fuel = st.selectbox("Fuel Type", ["Petrol", "Diesel", "Hybrid", "Electric"])
+    transmission = st.selectbox("Transmission", ["Automatic", "Manual"])
+    price = st.text_input("Price", "£45,995")
+    features = st.text_area("Key Features", "Panoramic roof, heated seats, M Sport package")
+    notes = st.text_area("Dealer Notes (optional)", "Full service history, finance available")
+    submit = st.form_submit_button("Generate Listing")
 
 # Function to append data to Google Sheet
 def append_to_google_sheet(data_dict):
@@ -52,26 +87,30 @@ def check_usage_this_month(user_id):
             count += 1
     return count
 
-# Streamlit UI
-st.set_page_config(page_title="🚗 AI Car Listing Generator", layout="centered")
-st.title("🚗 AI Car Listing Generator")
+# Simulated usage limit (replace this logic with real user tracking later)
+monthly_usage = 3  # Example: 3 listings already used
 
-api_key = st.text_input("Enter your OpenAI API key", type="password")
+# Stripe checkout for subscription if user hits limit
+if monthly_usage >= 3:
+    st.warning("🚫 You've reached your 3 free listings this month.")
+    if st.button("💳 Upgrade to Premium (£9.99/month)"):
+        try:
+            checkout_session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[{"price": price_id, "quantity": 1}],
+                mode="subscription",
+                success_url="https://car-listing-ai-kyjvkaybulqzjtdejuatq8.streamlit.app?success=true",
+                cancel_url="https://car-listing-ai-kyjvkaybulqzjtdejuatq8.streamlit.app?canceled=true",
+            )
+            st.markdown(
+                f"[🔗 Click here to complete subscription]({checkout_session.url})",
+                unsafe_allow_html=True,
+            )
+        except Exception as e:
+            st.error(f"Stripe error: {e}")
+    st.stop()
 
-with st.form("car_form"):
-    user_id = st.text_input("Your Business Email or Dealer ID", "")
-    make = st.text_input("Car Make", "BMW")
-    model = st.text_input("Model", "X5 M Sport")
-    year = st.text_input("Year", "2021")
-    mileage = st.text_input("Mileage", "28,000 miles")
-    color = st.text_input("Color", "Black")
-    fuel = st.selectbox("Fuel Type", ["Petrol", "Diesel", "Hybrid", "Electric"])
-    transmission = st.selectbox("Transmission", ["Automatic", "Manual"])
-    price = st.text_input("Price", "£45,995")
-    features = st.text_area("Key Features", "Panoramic roof, heated seats, M Sport package")
-    notes = st.text_area("Dealer Notes (optional)", "Full service history, finance available")
-    submit = st.form_submit_button("Generate Listing")
-
+# Main submission logic
 if submit:
     if not api_key or not user_id:
         st.warning("⚠️ Please enter both your OpenAI API key and business ID.")
@@ -135,5 +174,6 @@ Use separate paragraphs and include relevant emojis to make it more engaging.
                 st.success(f"✅ Listing generated and saved. You've used {usage_count + 1} out of 3 free listings this month.")
         except Exception as e:
             st.error(f"⚠️ Error: {e}")
+
 
 
