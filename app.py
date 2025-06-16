@@ -11,7 +11,7 @@ st.set_page_config(page_title="🚗 AI Car Listing Generator", layout="centered"
 st.title("🚗 AI Car Listing Generator")
 
 # Show payment success or cancel messages
-query_params = st.experimental_get_query_params()
+query_params = st.query_params
 
 if "success" in query_params:
     st.success("🎉 Payment successful! Your Premium plan is now active.")
